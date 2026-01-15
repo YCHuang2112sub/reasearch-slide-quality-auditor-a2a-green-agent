@@ -1,4 +1,4 @@
-import * as pdfExtract from 'pdf-img-convert';
+import pdfExtract from 'pdf-img-convert';
 // Note: pdf-img-convert might require specific setup or alternatives depending on environment.
 // For this implementation, we assume a robust environment.
 
