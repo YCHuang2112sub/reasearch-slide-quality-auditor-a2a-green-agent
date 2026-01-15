@@ -8,8 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "ts-node src/server.ts",
-    "dev-server": "ts-node-dev --respawn src/server.ts"
+    "start": "ts-node-esm src/server.ts",
+    "dev-server": "ts-node-dev --respawn --esm src/server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
