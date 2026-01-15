@@ -13,7 +13,7 @@ export class AuditorService {
         layoutSchematic: string,
         slideData: SlideData,
         storyContext: string,
-        model: ModelType = 'gemini-1.5-flash-latest'
+        model: ModelType = 'gemini-2.5-flash-lite'
     ): Promise<AuditResult> {
         // Use v1beta explicitly if needed, but SDK usually handles it.
         // gemini-1.5-flash is supported in v1beta for structured output.
