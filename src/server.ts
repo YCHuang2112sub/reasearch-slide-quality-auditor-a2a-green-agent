@@ -143,38 +143,53 @@ app.post(['/', '/assess'], async (req, res) => {
 
         // 4. Return Results
         // Wrap in AgentBeats A2A envelope to satisfy strict clients
-        const responseData = {
-            status: "completed",
-            result: {
-                Task: {
-                    id: "task-id-placeholder",
-                    contextId: "context-id-placeholder",
-                    state: "completed"
-                },
-                Message: {
-                    role: "agent",
-                    messageId: "msg-id-placeholder",
-                    parts: [
-                        {
-                            text: JSON.stringify(auditResults)
-                        }
-                    ]
-                }
+        // 4. Return Results
+        // Wrap in JSON-RPC envelope if request was JSON-RPC
+        const isJsonRpc = req.body.jsonrpc === "2.0";
+        const requestId = req.body.id || null;
+
+        const resultPayload = {
+            Task: {
+                id: "task-id-placeholder",
+                contextId: "context-id-placeholder", // Try camelCase
+                context_id: "context-id-placeholder", // Try snake_case
+                status: "completed", // Was state, fixed to status
+                state: "completed" // Keep both
             },
-            artifacts: [
-                {
-                    id: "audit-report",
-                    type: "application/json",
-                    data: auditResults
-                }
-            ],
-            // Legacy/Direct support
-            ...auditResults
+            Message: {
+                role: "agent",
+                messageId: "msg-id-placeholder",
+                message_id: "msg-id-placeholder",
+                parts: [
+                    {
+                        text: JSON.stringify(auditResults)
+                    }
+                ]
+            }
         };
 
-        // Try to construct a standard response if it looks like an A2A task
-        // But for now, just return the data. The logging will help us if it fails validation again.
-        res.json(responseData);
+        if (isJsonRpc) {
+            res.json({
+                jsonrpc: "2.0",
+                id: requestId,
+                result: resultPayload
+            });
+        } else {
+            // Legacy/Direct support
+            res.json({
+                status: "completed",
+                result: resultPayload,
+                artifacts: [
+                    {
+                        id: "audit-report",
+                        type: "application/json",
+                        data: auditResults
+                    }
+                ],
+                ...auditResults
+            });
+        }
+
 
     } catch (error: any) {
         console.error("Assessment failed:", error);
