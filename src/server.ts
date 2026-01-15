@@ -67,10 +67,27 @@ app.get('/.well-known/agent-card.json', (req, res) => {
 app.post('/assess', async (req, res) => {
     console.log("\n[REQUEST] POST /assess - New Assessment Request");
     console.log('[DEBUG] Request body keys:', Object.keys(req.body));
-    const { participants, config } = req.body;
+
+    let { participants, config } = req.body;
+
+    // ADAPTATION FOR AGENTBEATS PROTOCOL WRAPPER
+    // The client sends the payload inside params.message.parts[0].text as a JSON string
+    if (!participants && req.body.params?.message?.parts?.[0]?.text) {
+        try {
+            console.log("[ANTIGRAVITY] Detected AgentBeats Message Wrapper. Attempting to unwrap...");
+            const innerData = JSON.parse(req.body.params.message.parts[0].text);
+            if (innerData.participants) {
+                participants = innerData.participants;
+                config = innerData.config;
+                console.log("[ANTIGRAVITY] Successfully unwrapped payload.");
+            }
+        } catch (e) {
+            console.error("[ANTIGRAVITY] Failed to unwrap AgentBeats Message:", e);
+        }
+    }
 
     if (!participants) {
-        console.error("Participants not found in request body");
+        console.error("Participants not found in request body (even after unwrap attempt)");
         return res.status(400).json({ error: "Missing participants" });
     }
 
