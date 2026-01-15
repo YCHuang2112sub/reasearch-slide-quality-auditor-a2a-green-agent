@@ -8,13 +8,28 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/drive/1G5SxhgFM3pVHUjwV8woggLcXrXDbKVwM
 
-## Run Locally
+## Local Testing
 
-**Prerequisites:**  Node.js
+To test the Green Agent locally:
 
+1. **Set up Environment**:
+   Duplicate `.env.local` and ensure your `GEMINI_API_KEY` is set.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+2. **Start the Green Agent**:
+   ```bash
+   npm install
+   npm run start
+   ```
+
+3. **Start the Mock Purple Agent** (in a new tab):
+   ```bash
+   npx ts-node tests/mock_purple_agent.ts
+   ```
+
+4. **Trigger an Assessment**:
+   ```bash
+   node tests/trigger_test.js
+   ```
+
+## Leaderboard Configuration
+Use the query in [LEADERBOARD_QUERY.json](LEADERBOARD_QUERY.json) when setting up your leaderboard on AgentBeats.
