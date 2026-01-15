@@ -91,6 +91,7 @@ Evaluate 3 paths (Research->Notes, Research->Slide, Notes->Slide) across 3 crite
 
 OUTPUT JSON FORMAT ONLY.`;
 
+        console.log(`[DEBUG] Sending audit request to Gemini for slide ${slideData.title || 'unknown'}...`);
         const result = await generativeModel.generateContent([
             prompt,
             {
@@ -102,6 +103,14 @@ OUTPUT JSON FORMAT ONLY.`;
         ]);
 
         const response = await result.response;
-        return JSON.parse(response.text());
+        const text = response.text();
+        console.log("[DEBUG] Received Gemini response text length:", text.length);
+
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error("[DEBUG] Failed to parse Gemini response as JSON. Raw text:", text);
+            throw e;
+        }
     }
 }

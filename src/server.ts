@@ -37,7 +37,11 @@ app.get('/', (req, res) => {
  * A2A Assessment Endpoint
  */
 app.post('/assess', async (req, res) => {
+    console.log("\n--- New Assessment Request ---");
     const { participants, config } = req.body;
+
+    console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
+    console.log("[DEBUG] Config Keys:", Object.keys(config));
 
     console.log("Starting Assessment...");
     console.log("Participants:", participants);
@@ -47,17 +51,26 @@ app.post('/assess', async (req, res) => {
 
     try {
         // 1. Request Slide Generation from Purple Agent
+        console.log(`[DEBUG] Requesting slide generation from purple agent at: ${slideGeneratorUrl}/generate`);
         console.log("Requesting slide generation from purple agent...");
         const genResponse = await axios.post(`${slideGeneratorUrl}/generate`, {
             input: researchData
         });
 
+        console.log("[DEBUG] Received response from purple agent. Status:", genResponse.status);
         const pdfBase64 = genResponse.data.pdf; // Assuming purple agent returns base64 PDF
+        if (!pdfBase64) {
+            throw new Error("No PDF data returned from purple agent");
+        }
+        console.log("[DEBUG] PDF Data size:", pdfBase64.length, "chars");
+
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
 
         // 2. Process PDF to Images and Metadata
+        console.log("[DEBUG] Starting PDF processing...");
         console.log("Processing PDF...");
         const pages = await pdfProcessor.processPDF(pdfBuffer);
+        console.log(`[DEBUG] PDF processed. Extracted ${pages.length} pages.`);
 
         // 3. Perform Audit
         console.log("Performing logic audit...");

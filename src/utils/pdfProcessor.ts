@@ -1,8 +1,3 @@
-import * as pdfExtract from 'pdf-img-convert';
-const convert = (pdfExtract as any).convert || pdfExtract;
-// Note: pdf-img-convert might require specific setup or alternatives depending on environment.
-// For this implementation, we assume a robust environment.
-
 export interface PDFPageData {
     image: string; // Base64
     text: string;
@@ -10,17 +5,40 @@ export interface PDFPageData {
 
 export class PDFProcessor {
     async processPDF(pdfBuffer: Buffer): Promise<PDFPageData[]> {
-        const images = await convert(pdfBuffer, {
-            width: 1024,
-            height: 1024,
-            page_numbers: undefined // all pages
-        });
+        console.log("[DEBUG] PDFProcessor: Starting conversion. Buffer size:", pdfBuffer.length);
 
-        // In a real scenario, we'd also extract text positions.
-        // For now, we'll return the images and a placeholder for text until we add a text extractor.
-        return images.map((img: any) => ({
-            image: Buffer.from(img).toString('base64'),
-            text: "Layout schematic extraction point"
-        }));
+        try {
+            // Dynamic import to handle potential CJS/ESM issues with pdf-img-convert
+            console.log("[DEBUG] PDFProcessor: Loading pdf-img-convert...");
+            const pdfModule = await import('pdf-img-convert');
+
+            console.log("[DEBUG] PDFProcessor: Module Keys:", Object.keys(pdfModule));
+            const convert = pdfModule.convert || (pdfModule as any).default?.convert || (pdfModule as any).default;
+
+            if (typeof convert !== 'function') {
+                console.error("[DEBUG] PDFProcessor: Could not find convert function. Module keys:", Object.keys(pdfModule));
+                throw new Error("pdf-img-convert.convert is not a function");
+            }
+
+            console.log("[DEBUG] PDFProcessor: Calling convert function...");
+            const images = await convert(pdfBuffer, {
+                width: 1024,
+                height: 1024,
+                page_numbers: undefined // all pages
+            });
+
+            console.log(`[DEBUG] PDFProcessor: Successfully converted ${images.length} pages.`);
+
+            return images.map((img: any, index: number) => {
+                console.log(`[DEBUG] PDFProcessor: Processing page ${index + 1}/${images.length}`);
+                return {
+                    image: Buffer.from(img).toString('base64'),
+                    text: "Layout schematic extraction point"
+                };
+            });
+        } catch (error: any) {
+            console.error("[DEBUG] PDFProcessor Error:", error);
+            throw error;
+        }
     }
 }
