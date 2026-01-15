@@ -21,12 +21,15 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Basic argument parsing
+console.log('[STARTUP] Parsing command line arguments:', process.argv);
 const args = process.argv.slice(2);
 const portArg = args.indexOf('--port');
 const hostArg = args.indexOf('--host');
 
 const PORT = portArg !== -1 ? parseInt(args[portArg + 1]) : (process.env.PORT ? parseInt(process.env.PORT) : 9009);
 const HOST = hostArg !== -1 ? args[hostArg + 1] : '0.0.0.0';
+console.log('[STARTUP] PORT configured as:', PORT);
+console.log('[STARTUP] HOST configured as:', HOST);
 
 const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
 
@@ -47,10 +50,12 @@ const getAgentCard = () => ({
 });
 
 app.get('/', (req, res) => {
+    console.log('[REQUEST] GET / - Sending agent card');
     res.json(getAgentCard());
 });
 
 app.get('/.well-known/agent-card.json', (req, res) => {
+    console.log('[REQUEST] GET /.well-known/agent-card.json - Sending agent card');
     res.json(getAgentCard());
 });
 
@@ -58,7 +63,8 @@ app.get('/.well-known/agent-card.json', (req, res) => {
  * A2A Assessment Endpoint
  */
 app.post('/assess', async (req, res) => {
-    console.log("\n--- New Assessment Request ---");
+    console.log("\n[REQUEST] POST /assess - New Assessment Request");
+    console.log('[DEBUG] Request body keys:', Object.keys(req.body));
     const { participants, config } = req.body;
 
     console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
@@ -134,6 +140,8 @@ app.post('/assess', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Green Agent listening on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+    console.log(`[STARTUP] Green Agent listening on ${HOST}:${PORT}`);
+    console.log('[STARTUP] Healthcheck endpoint: /.well-known/agent-card.json');
+    console.log('[STARTUP] Assessment endpoint: /assess');
 });
