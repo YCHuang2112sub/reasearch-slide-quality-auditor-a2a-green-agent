@@ -1,0 +1,13 @@
+services:
+  green-agent:
+    build: .
+    ports:
+      - "9009:9009"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    command: [ "--host", "0.0.0.0", "--port", "9009" ]
+  # Placeholder for purple agent if testing locally
+  # purple-agent:
+  #   image: ghcr.io/yourusername/purple-agent:v1
+  #   ports:
+  #     - "9010:9010"
