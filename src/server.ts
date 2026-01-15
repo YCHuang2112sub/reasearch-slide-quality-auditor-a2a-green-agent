@@ -151,15 +151,12 @@ app.post(['/', '/assess'], async (req, res) => {
         const resultPayload = {
             Task: {
                 id: "task-id-placeholder",
-                contextId: "context-id-placeholder", // Try camelCase
-                context_id: "context-id-placeholder", // Try snake_case
-                status: "completed", // Was state, fixed to status
-                state: "completed" // Keep both
+                contextId: "context-id-placeholder",
+                status: "completed"
             },
             Message: {
-                role: "agent",
+                role: "assistant", // 'agent' or 'assistant' - usually assistant in chat
                 messageId: "msg-id-placeholder",
-                message_id: "msg-id-placeholder",
                 parts: [
                     {
                         text: JSON.stringify(auditResults)
@@ -167,6 +164,8 @@ app.post(['/', '/assess'], async (req, res) => {
                 ]
             }
         };
+
+        console.log("DEBUG: Sending Result Payload:", JSON.stringify(resultPayload, null, 2));
 
         if (isJsonRpc) {
             res.json({

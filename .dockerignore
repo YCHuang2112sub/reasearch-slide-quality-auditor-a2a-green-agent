@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+.env.local
+.DS_Store
+Thumbs.db
+dist
+coverage
+.vscode
