@@ -8,8 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "ts-node-esm src/server.ts",
-    "dev-server": "ts-node-dev --respawn --esm src/server.ts"
+    "start": "tsx src/server.ts",
+    "dev-server": "tsx watch src/server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

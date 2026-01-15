@@ -23,7 +23,7 @@ To test the Green Agent locally:
 
 3. **Start the Mock Purple Agent** (in a new tab):
    ```bash
-   npx ts-node tests/mock_purple_agent.ts
+   npx tsx tests/mock_purple_agent.ts
    ```
 
 4. **Trigger an Assessment**:
