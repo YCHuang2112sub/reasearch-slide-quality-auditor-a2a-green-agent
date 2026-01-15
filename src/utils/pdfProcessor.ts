@@ -1,4 +1,5 @@
-import { convert } from 'pdf-img-convert';
+import * as pdfExtract from 'pdf-img-convert';
+const convert = (pdfExtract as any).convert || pdfExtract;
 // Note: pdf-img-convert might require specific setup or alternatives depending on environment.
 // For this implementation, we assume a robust environment.
 
