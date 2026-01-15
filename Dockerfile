@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,5 +30,5 @@ EXPOSE 9009
 
 # Entrypoint as required by AgentBeats
 # It must accept --host, --port, and --card-url
-ENTRYPOINT ["npx", "ts-node", "src/server.ts"]
+ENTRYPOINT ["npx", "tsx", "src/server.ts"]
 CMD ["--host", "0.0.0.0", "--port", "9009"]
