@@ -75,6 +75,7 @@ app.get('/.well-known/agent-card.json', (req, res) => {
 app.post(['/', '/assess'], async (req, res) => {
     console.log("\n[REQUEST] POST /assess - New Assessment Request");
     console.log('[DEBUG] Request body keys:', Object.keys(req.body));
+    const params = req.body.params || {};
 
     let { participants, config } = req.body;
 
@@ -148,24 +149,18 @@ app.post(['/', '/assess'], async (req, res) => {
         const isJsonRpc = req.body.jsonrpc === "2.0";
         const requestId = req.body.id || null;
 
+        // Construct a flat Message object satisfying the schema
         const resultPayload = {
-            Task: {
-                id: "task-id-placeholder",
-                contextId: "context-id-placeholder",
-                status: "completed"
-            },
-            Message: {
-                role: "assistant", // 'agent' or 'assistant' - usually assistant in chat
-                messageId: "msg-id-placeholder",
-                parts: [
-                    {
-                        text: JSON.stringify(auditResults)
-                    }
-                ]
-            }
+            role: "agent",
+            messageId: params.messageId || ("msg-" + Date.now()), // Echo ID or generate new
+            parts: [
+                {
+                    text: JSON.stringify(auditResults)
+                }
+            ]
         };
 
-        console.log("DEBUG: Sending Result Payload:", JSON.stringify(resultPayload, null, 2));
+        console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
 
         if (isJsonRpc) {
             res.json({
