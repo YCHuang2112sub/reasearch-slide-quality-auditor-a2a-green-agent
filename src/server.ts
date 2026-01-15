@@ -44,8 +44,16 @@ const getAgentCard = () => ({
     description: "A sophisticated Multimodal Green Agent designed to audit the consistency and authenticity of research-based slide decks. It evaluates the relationship between research findings, speaker notes, and visual slide content to identify hallucinations and ensure data integrity.",
     version: "1.0.0",
     type: "green",
-    capabilities: ["assessment"],
+    capabilities: {
+        assessment: {
+            type: "assessment",
+            description: "Audits slide fidelity against research"
+        }
+    },
+    defaultInputModes: ["text"],
+    defaultOutputModes: ["text"],
     skills: [],
+    url: "http://green-agent:9009",
     endpoints: {
         assess: "/assess"
     }
