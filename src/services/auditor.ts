@@ -13,8 +13,10 @@ export class AuditorService {
         layoutSchematic: string,
         slideData: SlideData,
         storyContext: string,
-        model: ModelType = 'gemini-1.5-flash'
+        model: ModelType = 'gemini-1.5-flash' // Standard model ID
     ): Promise<AuditResult> {
+        // Use v1beta explicitly if needed, but SDK usually handles it.
+        // gemini-1.5-flash is supported in v1beta for structured output.
         const generativeModel = this.genAI.getGenerativeModel({
             model: model,
             generationConfig: {
