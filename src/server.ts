@@ -72,7 +72,7 @@ app.get('/.well-known/agent-card.json', (req, res) => {
 /**
  * A2A Assessment Endpoint
  */
-app.post('/assess', async (req, res) => {
+app.post(['/', '/assess'], async (req, res) => {
     console.log("\n[REQUEST] POST /assess - New Assessment Request");
     console.log('[DEBUG] Request body keys:', Object.keys(req.body));
 
