@@ -1,0 +1,5 @@
+{
+  "description": "A high-end multimodal application to audit consistency between JSON slide definitions and rendered PDF decks using Gemini 3.",
+  "requestFramePermissions": [],
+  "name": "Reasearch Slide Quality Auditor"
+}
