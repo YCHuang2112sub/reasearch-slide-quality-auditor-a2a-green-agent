@@ -1,4 +1,4 @@
-import pdfExtract from 'pdf-img-convert';
+import { convert } from 'pdf-img-convert';
 // Note: pdf-img-convert might require specific setup or alternatives depending on environment.
 // For this implementation, we assume a robust environment.
 
@@ -9,7 +9,7 @@ export interface PDFPageData {
 
 export class PDFProcessor {
     async processPDF(pdfBuffer: Buffer): Promise<PDFPageData[]> {
-        const images = await pdfExtract.convert(pdfBuffer, {
+        const images = await convert(pdfBuffer, {
             width: 1024,
             height: 1024,
             page_numbers: undefined // all pages
