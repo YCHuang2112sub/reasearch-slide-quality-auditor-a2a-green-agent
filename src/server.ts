@@ -20,7 +20,14 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 9009;
+// Basic argument parsing
+const args = process.argv.slice(2);
+const portArg = args.indexOf('--port');
+const hostArg = args.indexOf('--host');
+
+const PORT = portArg !== -1 ? parseInt(args[portArg + 1]) : (process.env.PORT ? parseInt(process.env.PORT) : 9009);
+const HOST = hostArg !== -1 ? args[hostArg + 1] : '0.0.0.0';
+
 const API_KEY = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
 
 const auditor = new AuditorService(API_KEY);
@@ -29,16 +36,22 @@ const pdfProcessor = new PDFProcessor();
 /**
  * A2A Agent Card Endpoint
  */
+const getAgentCard = () => ({
+    name: "Research Slide Quality Auditor",
+    description: "Multimodal Green Agent for auditing research slides consistency.",
+    version: "1.0.0",
+    capabilities: ["assessment"],
+    endpoints: {
+        assess: "/assess"
+    }
+});
+
 app.get('/', (req, res) => {
-    res.json({
-        name: "Research Slide Quality Auditor",
-        description: "Multimodal Green Agent for auditing research slides consistency.",
-        version: "1.0.0",
-        capabilities: ["assessment"],
-        endpoints: {
-            assess: "/assess"
-        }
-    });
+    res.json(getAgentCard());
+});
+
+app.get('/.well-known/agent-card.json', (req, res) => {
+    res.json(getAgentCard());
 });
 
 /**
