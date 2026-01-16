@@ -14,9 +14,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     fonts-liberation \
     fontconfig \
-    fonts-dejavu \
-    fonts-freefont-ttf \
-    fonts-noto-cjk \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
