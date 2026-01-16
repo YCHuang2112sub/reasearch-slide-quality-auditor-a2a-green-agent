@@ -188,12 +188,14 @@ app.post(['/', '/assess'], async (req, res) => {
     console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
     console.log("[DEBUG] Config:", JSON.stringify(config, null, 2));
 
-    let slideGeneratorUrl = "http://agent:9009"; // Defaultray.isArray(participants)) {
-    const agent = participants.find((p: any) => p.name === 'agent');
-    if (agent && agent.url) slideGeneratorUrl = agent.url;
-    // Also check for env var based discovery if needed
-} else if (participants?.slide_generator) {
-    slideGeneratorUrl = participants.slide_generator;
+    let slideGeneratorUrl = "http://agent:9009"; // Default
+    if (Array.isArray(participants)) {
+        const agent = participants.find((p: any) => p.name === 'agent');
+        if (agent && agent.url) slideGeneratorUrl = agent.url;
+        // Also check for env var based discovery if needed
+    } else if (participants?.slide_generator) {
+        slideGeneratorUrl = participants.slide_generator;
+    }
 
     console.log(`[DEBUG] Resolved Slide Generator URL: ${slideGeneratorUrl}`);
 
@@ -202,9 +204,25 @@ app.post(['/', '/assess'], async (req, res) => {
     try {
         // 1. Request Slide Generation from Purple Agent
         console.log(`[DEBUG] Requesting slide generation from purple agent at: ${slideGeneratorUrl}/generate`);
-        const genResponse = await axios.post(`${slideGeneratorUrl}/generate`, {
-            input: researchData
-        });
+        // Log the payload we are sending
+        console.log(`[DEBUG] Payload sent to Purple Agent:`, JSON.stringify({ input: researchData }, null, 2));
+
+        let genResponse;
+        try {
+            genResponse = await axios.post(`${slideGeneratorUrl}/generate`, {
+                input: researchData
+            });
+            console.log(`[DEBUG] Purple Agent Response Status: ${genResponse.status}`);
+            console.log(`[DEBUG] Purple Agent Response Headers:`, JSON.stringify(genResponse.headers));
+            // console.log(`[DEBUG] Purple Agent Response Data Keys:`, Object.keys(genResponse.data)); // Summarize
+        } catch (axiosError: any) {
+            console.error(`[ERROR] Purple Agent Request Failed: ${axiosError.message}`);
+            if (axiosError.response) {
+                console.error(`[ERROR] Response Status: ${axiosError.response.status}`);
+                console.error(`[ERROR] Response Data:`, JSON.stringify(axiosError.response.data));
+            }
+            throw axiosError; // Re-throw to be caught by outer handler
+        }
 
         // ... (Processing logic remains the same) ...
         const pdfBase64 = genResponse.data.pdf;
