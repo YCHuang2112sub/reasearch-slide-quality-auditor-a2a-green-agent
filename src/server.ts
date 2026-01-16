@@ -188,14 +188,12 @@ app.post(['/', '/assess'], async (req, res) => {
     console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
     console.log("[DEBUG] Config:", JSON.stringify(config, null, 2));
 
-    let slideGeneratorUrl = "http://agent:9009"; // Default
-    if (Array.isArray(participants)) {
-        const agent = participants.find((p: any) => p.name === 'agent');
-        if (agent && agent.url) slideGeneratorUrl = agent.url;
-        // Also check for env var based discovery if needed
-    } else if (participants?.slide_generator) {
-        slideGeneratorUrl = participants.slide_generator;
-    }
+    let slideGeneratorUrl = "http://agent:9009"; // Defaultray.isArray(participants)) {
+    const agent = participants.find((p: any) => p.name === 'agent');
+    if (agent && agent.url) slideGeneratorUrl = agent.url;
+    // Also check for env var based discovery if needed
+} else if (participants?.slide_generator) {
+    slideGeneratorUrl = participants.slide_generator;
 
     console.log(`[DEBUG] Resolved Slide Generator URL: ${slideGeneratorUrl}`);
 
