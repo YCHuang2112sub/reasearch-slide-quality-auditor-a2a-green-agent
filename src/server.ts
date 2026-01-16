@@ -90,6 +90,89 @@ app.post(['/', '/assess'], async (req, res) => {
                 participants = innerData.participants;
                 config = innerData.config;
                 console.log("[ANTIGRAVITY] Successfully unwrapped payload.");
+                // Parse the data from the first participant's outputs
+                const pdfOutput = participants[0]?.outputs?.find((o: any) => o.type === 'application/pdf');
+                const jsonOutput = participants[0]?.outputs?.find((o: any) => o.type === 'application/json');
+
+                if (!pdfOutput || !jsonOutput) {
+                    console.error('[ERROR] Missing PDF or JSON output from participant');
+                    return res.status(400).json({ error: 'Missing required outputs (PDF or JSON)' });
+                }
+
+                const pdf_base64 = pdfOutput.data;
+                const project_data = jsonOutput.data;
+
+                // DEBUG: Save received files immediately to verify transfer
+                try {
+                    // Save received PDF
+                    fs.writeFileSync('green_received.pdf', Buffer.from(pdf_base64, 'base64'));
+                    // Save received JSON
+                    fs.writeFileSync('green_received.json', JSON.stringify(project_data, null, 2));
+                    console.log('[DEBUG] Saved received files: green_received.pdf and green_received.json');
+                    console.log(`[DEBUG] Received PDF size: ${Buffer.from(pdf_base64, 'base64').length} bytes`);
+                    console.log(`[DEBUG] Received JSON slides: ${project_data.slides?.length || 0}`);
+                } catch (saveError) {
+                    console.error('[ERROR] Failed to save received files:', saveError);
+                }
+
+                console.log(`[DEBUG] Processing ${project_data.slides?.length || 0} slides from Purple Agent`);
+
+                // Use the received data directly instead of calling the purple agent again
+                const pdfBuffer = Buffer.from(pdf_base64, 'base64');
+                const pages = await pdfProcessor.processPDF(pdfBuffer);
+
+                const auditResults = [];
+                let storyContext = "Initial Slide: No previous context.";
+
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+                    const slideData = project_data.slides[i] || project_data; // Use project_data for slide data
+                    const result = await auditor.auditSlide(page.image, page.text, slideData, storyContext);
+                    auditResults.push(result);
+                    storyContext = `Slide ${i + 1} Verdict: ${result.narrativeVerdict}`;
+                }
+
+                // 4. Return Results
+                // Wrap in JSON-RPC envelope if request was JSON-RPC
+                const isJsonRpc = req.body.jsonrpc === "2.0";
+                const requestId = req.body.id || null;
+
+                // Construct a flat Message object satisfying the schema
+                const resultPayload = {
+                    role: "agent",
+                    messageId: params.messageId || ("msg-" + Date.now()), // Echo ID or generate new
+                    parts: [
+                        {
+                            text: JSON.stringify(auditResults)
+                        }
+                    ]
+                };
+
+                console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
+
+                if (isJsonRpc) {
+                    res.json({
+                        jsonrpc: "2.0",
+                        id: requestId,
+                        result: resultPayload
+                    });
+                } else {
+                    // Legacy/Direct support
+                    res.json({
+                        status: "completed",
+                        result: resultPayload,
+                        artifacts: [
+                            {
+                                id: "audit-report",
+                                totalScore: { type: "INTEGER", description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
+                                type: "application/json",
+                                data: auditResults
+                            }
+                        ],
+                        ...auditResults
+                    });
+                }
+                return; // Exit after processing unwrapped payload
             }
         } catch (e) {
             console.error("[ANTIGRAVITY] Failed to unwrap AgentBeats Message:", e);
