@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     libgif-dev \
     librsvg2-dev \
     curl \
+    fonts-liberation \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
