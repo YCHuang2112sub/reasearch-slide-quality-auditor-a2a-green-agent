@@ -214,6 +214,30 @@ app.post(['/', '/assess'], async (req, res) => {
             const fs = await import('fs');
             fs.writeFileSync('/app/debug_output/green_audit_result.json', JSON.stringify(resultPayload, null, 2));
             console.log('[DEBUG] Saved green_audit_result.json');
+
+            // --- LEADERBOARD COMPATIBILITY ---
+            // Also save the authoritative 'results.json' with the 'run_id' field 
+            // so it can be directly picked up by the leaderboard without extra scripts.
+            let agentIdKey = "unknown_agent";
+            if (Array.isArray(participants)) {
+                const pAgent = participants.find((p: any) => p.name === 'agent');
+                if (pAgent && pAgent.agentbeats_id) agentIdKey = pAgent.agentbeats_id;
+                else if (pAgent && pAgent.id) agentIdKey = pAgent.id;
+            } else if (participants?.agent) {
+                agentIdKey = participants.agent;
+            }
+
+            const leaderboardPayload = {
+                participants: {
+                    agent: agentIdKey,
+                    run_id: "run-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
+                },
+                results: auditResults
+            };
+            fs.writeFileSync('/app/debug_output/results.json', JSON.stringify(leaderboardPayload, null, 2));
+            console.log('[DEBUG] Saved standardized results.json with run_id to /app/debug_output');
+            // ----------------------------------
+
         } catch (e) { console.error('Failed to save audit result:', e); }
 
         console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
