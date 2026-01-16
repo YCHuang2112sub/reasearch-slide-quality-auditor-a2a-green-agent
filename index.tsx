@@ -197,7 +197,7 @@ OUTPUT JSON FORMAT ONLY.` }
                 focalPoint: { type: Type.STRING },
                 internalAlignment: { type: Type.INTEGER },
                 narrativeFlow: { type: Type.INTEGER },
-                totalScore: { type: Type.INTEGER },
+                totalScore: { type: Type.INTEGER, description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
                 narrativeVerdict: { type: Type.STRING },
                 critique: { type: Type.STRING }
               },
@@ -213,11 +213,28 @@ OUTPUT JSON FORMAT ONLY.` }
 
         const auditData = JSON.parse(response.text || '{}');
 
-        // All scores are now produced in 1-100 range by the weighted AI prompt
+        // Enforce 100% cap on all scores (clamp to 0-100 range)
+        const clamp = (val: number) => Math.min(100, Math.max(0, val || 0));
+
         const normalizedData = {
           ...auditData,
           pageNumber: i,
-          layoutSchematic
+          layoutSchematic,
+          // Clamp all percentage-based scores to 0-100
+          r2n_retention: clamp(auditData.r2n_retention),
+          r2n_authenticity: clamp(auditData.r2n_authenticity),
+          r2n_risk: clamp(auditData.r2n_risk),
+          r2s_retention: clamp(auditData.r2s_retention),
+          r2s_authenticity: clamp(auditData.r2s_authenticity),
+          r2s_risk: clamp(auditData.r2s_risk),
+          n2s_retention: clamp(auditData.n2s_retention),
+          n2s_authenticity: clamp(auditData.n2s_authenticity),
+          n2s_risk: clamp(auditData.n2s_risk),
+          clarityScore: clamp(auditData.clarityScore),
+          logicScore: clamp(auditData.logicScore),
+          internalAlignment: clamp(auditData.internalAlignment),
+          narrativeFlow: clamp(auditData.narrativeFlow),
+          totalScore: clamp(auditData.totalScore) // HARD CAP at 100%
         };
 
         newResults.push(normalizedData);
