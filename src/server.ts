@@ -3,6 +3,7 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import fs from 'fs';
 import { AuditorService } from './services/auditor';
 import { PDFProcessor } from './utils/pdfProcessor';
 
