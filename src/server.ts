@@ -98,122 +98,137 @@ app.post(['/', '/assess'], async (req, res) => {
             console.error("[ANTIGRAVITY] Failed to unwrap AgentBeats Message:", e);
         }
     }
-}
+
+
 
     if (!participants) {
-    console.error("Participants not found in request body (even after unwrap attempt)");
-    return res.status(400).json({ error: "Missing participants" });
-}
+        console.error("Participants not found in request body (even after unwrap attempt)");
+        return res.status(400).json({ error: "Missing participants" });
+    }
 
-console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
-console.log("[DEBUG] Config:", JSON.stringify(config, null, 2));
+    console.log("[DEBUG] Participants:", JSON.stringify(participants, null, 2));
+    console.log("[DEBUG] Config:", JSON.stringify(config, null, 2));
 
-let slideGeneratorUrl = "http://agent:9009"; // Default
-if (Array.isArray(participants)) {
-    const agent = participants.find((p: any) => p.name === 'agent');
-    if (agent && agent.url) slideGeneratorUrl = agent.url;
-    // Also check for env var based discovery if needed
-} else if (participants?.slide_generator) {
-    slideGeneratorUrl = participants.slide_generator;
-}
+    let slideGeneratorUrl = "http://agent:9009"; // Default
+    if (Array.isArray(participants)) {
+        const agent = participants.find((p: any) => p.name === 'agent');
+        if (agent && agent.url) slideGeneratorUrl = agent.url;
+        // Also check for env var based discovery if needed
+    } else if (participants?.slide_generator) {
+        slideGeneratorUrl = participants.slide_generator;
+    }
 
-console.log(`[DEBUG] Resolved Slide Generator URL: ${slideGeneratorUrl}`);
+    console.log(`[DEBUG] Resolved Slide Generator URL: ${slideGeneratorUrl}`);
 
-const researchData = config.research_data;
+    const researchData = config.research_data;
 
-try {
-    // 1. Request Slide Generation from Purple Agent
-    console.log(`[DEBUG] Requesting slide generation from purple agent at: ${slideGeneratorUrl}/generate`);
-    // Log the payload we are sending
-    console.log(`[DEBUG] Payload sent to Purple Agent:`, JSON.stringify({ input: researchData }, null, 2));
-
-    let genResponse;
     try {
-        genResponse = await axios.post(`${slideGeneratorUrl}/generate`, {
-            input: researchData
-        });
-        console.log(`[DEBUG] Purple Agent Response Status: ${genResponse.status}`);
-        console.log(`[DEBUG] Purple Agent Response Headers:`, JSON.stringify(genResponse.headers));
-        // console.log(`[DEBUG] Purple Agent Response Data Keys:`, Object.keys(genResponse.data)); // Summarize
-    } catch (axiosError: any) {
-        console.error(`[ERROR] Purple Agent Request Failed: ${axiosError.message}`);
-        if (axiosError.response) {
-            console.error(`[ERROR] Response Status: ${axiosError.response.status}`);
-            console.error(`[ERROR] Response Data:`, JSON.stringify(axiosError.response.data));
-        }
-        throw axiosError; // Re-throw to be caught by outer handler
-    }
+        // 1. Request Slide Generation from Purple Agent
+        console.log(`[DEBUG] Requesting slide generation from purple agent at: ${slideGeneratorUrl}/generate`);
+        // Log the payload we are sending
+        console.log(`[DEBUG] Payload sent to Purple Agent:`, JSON.stringify({ input: researchData }, null, 2));
 
-    // ... (Processing logic remains the same) ...
-    const pdfBase64 = genResponse.data.pdf;
-    if (!pdfBase64) {
-        throw new Error("No PDF data returned from purple agent");
-    }
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    const pages = await pdfProcessor.processPDF(pdfBuffer);
-
-    const auditResults = [];
-    let storyContext = "Initial Slide: No previous context.";
-
-    for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
-        const slideData = researchData.slides[i] || researchData;
-        const result = await auditor.auditSlide(page.image, page.text, slideData, storyContext);
-        auditResults.push(result);
-        storyContext = `Slide ${i + 1} Verdict: ${result.narrativeVerdict}`;
-    }
-
-    // 4. Return Results
-    // Wrap in AgentBeats A2A envelope to satisfy strict clients
-    // 4. Return Results
-    // Wrap in JSON-RPC envelope if request was JSON-RPC
-    const isJsonRpc = req.body.jsonrpc === "2.0";
-    const requestId = req.body.id || null;
-
-    // Construct a flat Message object satisfying the schema
-    const resultPayload = {
-        role: "agent",
-        messageId: params.messageId || ("msg-" + Date.now()), // Echo ID or generate new
-        parts: [
-            {
-                text: JSON.stringify(auditResults)
+        let genResponse;
+        try {
+            genResponse = await axios.post(`${slideGeneratorUrl}/generate`, {
+                input: researchData
+            });
+            console.log(`[DEBUG] Purple Agent Response Status: ${genResponse.status}`);
+            console.log(`[DEBUG] Purple Agent Response Headers:`, JSON.stringify(genResponse.headers));
+            // console.log(`[DEBUG] Purple Agent Response Data Keys:`, Object.keys(genResponse.data)); // Summarize
+        } catch (axiosError: any) {
+            console.error(`[ERROR] Purple Agent Request Failed: ${axiosError.message}`);
+            if (axiosError.response) {
+                console.error(`[ERROR] Response Status: ${axiosError.response.status}`);
+                console.error(`[ERROR] Response Data:`, JSON.stringify(axiosError.response.data));
             }
-        ]
-    };
+            throw axiosError; // Re-throw to be caught by outer handler
+        }
 
-    console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
+        // ... (Processing logic remains the same) ...
+        const pdfBase64 = genResponse.data.pdf;
 
-    if (isJsonRpc) {
-        res.json({
-            jsonrpc: "2.0",
-            id: requestId,
-            result: resultPayload
-        });
-    } else {
-        // Legacy/Direct support
-        res.json({
-            status: "completed",
-            result: resultPayload,
-            artifacts: [
+        // DEBUG: Save received files to volume for verification
+        try {
+            const fs = await import('fs');
+            if (!fs.existsSync('/app/debug_output')) fs.mkdirSync('/app/debug_output', { recursive: true });
+
+            fs.writeFileSync('/app/debug_output/green_received.pdf', Buffer.from(pdfBase64, 'base64'));
+            if (genResponse.data.json) {
+                fs.writeFileSync('/app/debug_output/green_received.json', JSON.stringify(genResponse.data.json, null, 2));
+            }
+            console.log('[DEBUG] Saved green_received.pdf and .json to /app/debug_output');
+        } catch (debugErr) {
+            console.error('[DEBUG] Failed to save debug files:', debugErr);
+        }
+        if (!pdfBase64) {
+            throw new Error("No PDF data returned from purple agent");
+        }
+        const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+        const pages = await pdfProcessor.processPDF(pdfBuffer);
+
+        const auditResults = [];
+        let storyContext = "Initial Slide: No previous context.";
+
+        for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
+            const slideData = researchData.slides[i] || researchData;
+            const result = await auditor.auditSlide(page.image, page.text, slideData, storyContext);
+            auditResults.push(result);
+            storyContext = `Slide ${i + 1} Verdict: ${result.narrativeVerdict}`;
+        }
+
+        // 4. Return Results
+        // Wrap in AgentBeats A2A envelope to satisfy strict clients
+        // 4. Return Results
+        // Wrap in JSON-RPC envelope if request was JSON-RPC
+        const isJsonRpc = req.body.jsonrpc === "2.0";
+        const requestId = req.body.id || null;
+
+        // Construct a flat Message object satisfying the schema
+        const resultPayload = {
+            role: "agent",
+            messageId: params.messageId || ("msg-" + Date.now()), // Echo ID or generate new
+            parts: [
                 {
-                    id: "audit-report",
-                    totalScore: { type: "INTEGER", description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
-                    type: "application/json",
-                    data: auditResults
+                    text: JSON.stringify(auditResults)
                 }
-            ],
-            ...auditResults
+            ]
+        };
+
+        console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
+
+        if (isJsonRpc) {
+            res.json({
+                jsonrpc: "2.0",
+                id: requestId,
+                result: resultPayload
+            });
+        } else {
+            // Legacy/Direct support
+            res.json({
+                status: "completed",
+                result: resultPayload,
+                artifacts: [
+                    {
+                        id: "audit-report",
+                        totalScore: { type: "INTEGER", description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
+                        type: "application/json",
+                        data: auditResults
+                    }
+                ],
+                ...auditResults
+            });
+        }
+
+
+    } catch (error: any) {
+        console.error("Assessment failed:", error);
+        res.status(500).json({
+            status: "failed",
+            error: error.message
         });
     }
-
-
-} catch (error: any) {
-    console.error("Assessment failed:", error);
-    res.status(500).json({
-        status: "failed",
-        error: error.message
-    });
-}
 });
 
 app.listen(PORT, HOST, () => {
