@@ -40,7 +40,7 @@ export class AuditorService {
                         focalPoint: { type: SchemaType.STRING },
                         internalAlignment: { type: SchemaType.INTEGER },
                         narrativeFlow: { type: SchemaType.INTEGER },
-                        totalScore: { type: SchemaType.INTEGER },
+                        totalScore: { type: SchemaType.INTEGER, description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
                         narrativeVerdict: { type: SchemaType.STRING },
                         critique: { type: SchemaType.STRING }
                     },
