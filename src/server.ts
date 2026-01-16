@@ -167,12 +167,25 @@ app.post(['/', '/assess'], async (req, res) => {
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
         const pages = await pdfProcessor.processPDF(pdfBuffer);
 
+        // Save first page image for inspection
+        if (pages.length > 0) {
+            try {
+                const fs = await import('fs');
+                if (!fs.existsSync('/app/debug_output')) fs.mkdirSync('/app/debug_output', { recursive: true });
+                fs.writeFileSync('/app/debug_output/green_page1_preview.png', Buffer.from(pages[0].image, 'base64'));
+                console.log('[DEBUG] Saved green_page1_preview.png to /app/debug_output');
+            } catch (e) { console.error('[DEBUG] Failed to save preview image:', e); }
+        }
+
         const auditResults = [];
         let storyContext = "Initial Slide: No previous context.";
 
         for (let i = 0; i < pages.length; i++) {
+            if (i > 0) await new Promise(r => setTimeout(r, 5000)); // Rate limiting
             const page = pages[i];
-            const slideData = researchData.slides[i] || researchData;
+            // Use generated slides from Purple Agent if available, otherwise fallback to input plan
+            const generatedSlides = genResponse.data?.json?.slides || [];
+            const slideData = generatedSlides[i] || researchData.slides?.[i] || researchData;
             const result = await auditor.auditSlide(page.image, page.text, slideData, storyContext);
             auditResults.push(result);
             storyContext = `Slide ${i + 1} Verdict: ${result.narrativeVerdict}`;

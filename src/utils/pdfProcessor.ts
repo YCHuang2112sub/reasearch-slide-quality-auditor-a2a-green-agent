@@ -22,8 +22,8 @@ export class PDFProcessor {
 
             console.log("[DEBUG] PDFProcessor: Calling convert function...");
             const images = await convert(pdfBuffer, {
-                width: 1024,
-                height: 1024,
+                width: 2048,
+                height: 2048, // pdf-img-convert uses these as max dimensions or strict? Docs say 'width' and 'height' set viewport.
                 page_numbers: undefined // all pages
             });
 
