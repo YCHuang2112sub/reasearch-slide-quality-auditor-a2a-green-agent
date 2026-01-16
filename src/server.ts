@@ -176,6 +176,7 @@ app.post(['/', '/assess'], async (req, res) => {
                 artifacts: [
                     {
                         id: "audit-report",
+                        totalScore: { type: "INTEGER", description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
                         type: "application/json",
                         data: auditResults
                     }
