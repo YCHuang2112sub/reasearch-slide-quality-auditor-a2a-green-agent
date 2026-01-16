@@ -10,7 +10,8 @@ dotenv.config({ path: '.env.local' });
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.json({ limit: '20mb' })); // Increased limit for large PDFs (6MB base64 = ~8MB)
+app.use(bodyParser.urlencoded({ limit: '20mb', extended: true }));
 
 process.on('uncaughtException', (err) => {
     console.error('[FATAL] Uncaught Exception:', err);
