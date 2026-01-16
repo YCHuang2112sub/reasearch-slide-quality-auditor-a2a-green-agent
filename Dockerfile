@@ -4,6 +4,7 @@ FROM node:20-slim
 # Install system dependencies for canvas and PDF processing
 RUN apt-get update && apt-get install -y \
     python3 \
+    python3-pip \
     make \
     g++ \
     libcairo2-dev \
@@ -17,8 +18,8 @@ RUN apt-get update && apt-get install -y \
     fonts-dejavu \
     fonts-freefont-ttf \
     fonts-noto-core \
+    && pip3 install --break-system-packages pypdfium2 pillow \
     && fc-cache -f -v \
-    && fc-list \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

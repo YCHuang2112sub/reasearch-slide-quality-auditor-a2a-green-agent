@@ -2,6 +2,10 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface PDFPageData {
     image: string; // Base64
@@ -12,20 +16,31 @@ export class PDFProcessor {
     async processPDF(pdfBuffer: Buffer): Promise<PDFPageData[]> {
         console.log("[DEBUG] PDFProcessor: Starting conversion. Buffer size:", pdfBuffer.length);
 
-        // Try Poppler (pdftoppm) first for high fidelity
+        // Try pypdfium2 (via Python utility) for high fidelity
         try {
-            console.log("[DEBUG] PDFProcessor: Attempting Poppler (pdftoppm) conversion...");
+            console.log("[DEBUG] PDFProcessor: Attempting pypdfium2 conversion via Python...");
             const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-proc-'));
             const inputPdf = path.join(tempDir, 'input.pdf');
-            const outputPrefix = path.join(tempDir, 'page');
+            const outputDir = path.join(tempDir, 'output');
+
+            // Path to the Python utility script
+            // In the container, it will be at /app/src/utils/pdf_to_png.py
+            const scriptPath = path.resolve(__dirname, 'pdf_to_png.py');
 
             try {
                 fs.writeFileSync(inputPdf, pdfBuffer);
 
-                // -r 300 for high quality, -png for PNG output
-                execSync(`pdftoppm -png -r 300 "${inputPdf}" "${outputPrefix}"`);
+                // Run the Python utility
+                // We use python3 as per Dockerfile setup
+                const cmd = `python3 "${scriptPath}" "${inputPdf}" "${outputDir}" 300`;
+                console.log(`[DEBUG] Executing: ${cmd}`);
+                const output = execSync(cmd).toString();
 
-                const files = fs.readdirSync(tempDir)
+                if (!output.includes("SUCCESS")) {
+                    throw new Error("Python conversion failed: " + output);
+                }
+
+                const files = fs.readdirSync(outputDir)
                     .filter(f => f.startsWith('page') && f.endsWith('.png'))
                     .sort((a, b) => {
                         const numA = parseInt(a.match(/\d+/)?.[0] || '0');
@@ -33,11 +48,11 @@ export class PDFProcessor {
                         return numA - numB;
                     });
 
-                console.log(`[DEBUG] PDFProcessor: Poppler produced ${files.length} pages.`);
+                console.log(`[DEBUG] PDFProcessor: pypdfium2 produced ${files.length} pages.`);
 
                 if (files.length > 0) {
                     const results: PDFPageData[] = files.map((file) => {
-                        const imgPath = path.join(tempDir, file);
+                        const imgPath = path.join(outputDir, file);
                         const buffer = fs.readFileSync(imgPath);
                         return {
                             image: buffer.toString('base64'),
@@ -55,7 +70,7 @@ export class PDFProcessor {
                 }
             }
         } catch (error: any) {
-            console.warn("[DEBUG] PDFProcessor: Poppler failed or not available, falling back to pdf-img-convert:", error.message);
+            console.warn("[DEBUG] PDFProcessor: pypdfium2 failed, falling back to pdf-img-convert:", error.message);
         }
 
         // Fallback to pdf-img-convert
@@ -81,7 +96,7 @@ export class PDFProcessor {
                 };
             });
         } catch (error: any) {
-            console.error("[DEBUG] PDFProcessor Error:", error);
+            console.error("[DEBUG] PDFProcessor Final Failure:", error);
             throw error;
         }
     }
