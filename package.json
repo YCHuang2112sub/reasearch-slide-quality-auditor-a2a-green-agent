@@ -19,7 +19,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "pdf-img-convert": "^2.0.0",
+    "pdf-img-convert": "^1.2.1",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
