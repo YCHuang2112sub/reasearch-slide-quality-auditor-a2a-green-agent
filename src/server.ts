@@ -209,6 +209,13 @@ app.post(['/', '/assess'], async (req, res) => {
             ]
         };
 
+        // DEBUG: Save final audit result
+        try {
+            const fs = await import('fs');
+            fs.writeFileSync('/app/debug_output/green_audit_result.json', JSON.stringify(resultPayload, null, 2));
+            console.log('[DEBUG] Saved green_audit_result.json');
+        } catch (e) { console.error('Failed to save audit result:', e); }
+
         console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
 
         if (isJsonRpc) {
