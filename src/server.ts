@@ -183,6 +183,23 @@ app.post(['/', '/assess'], async (req, res) => {
         for (let i = 0; i < pages.length; i++) {
             if (i > 0) await new Promise(r => setTimeout(r, 5000)); // Rate limiting
             const page = pages[i];
+
+            // DEBUG: Save slide image to volume for verification
+            try {
+                const fs = await import('fs');
+                if (!fs.existsSync('/app/debug_output')) fs.mkdirSync('/app/debug_output', { recursive: true });
+                fs.writeFileSync(`/app/debug_output/slide_${i + 1}.png`, Buffer.from(page.image, 'base64'));
+                console.log(`[DEBUG] Saved slide_${i + 1}.png to /app/debug_output`);
+            } catch (e) { console.error(`[DEBUG] Failed to save slide_${i + 1}.png:`, e); }
+
+            // SAVE SLIDE IMAGE TO DEBUG VOLUMN
+            try {
+                const fs = await import('fs');
+                if (!fs.existsSync('/app/debug_output')) fs.mkdirSync('/app/debug_output', { recursive: true });
+                fs.writeFileSync(`/app/debug_output/slide_${i + 1}.png`, Buffer.from(page.image, 'base64'));
+                console.log(`[DEBUG] Saved slide_${i + 1}.png to /app/debug_output`);
+            } catch (e) { console.error(`[DEBUG] Failed to save slide_${i + 1}.png:`, e); }
+
             // Use generated slides from Purple Agent if available, otherwise fallback to input plan
             const generatedSlides = genResponse.data?.json?.slides || [];
             const slideData = generatedSlides[i] || researchData.slides?.[i] || researchData;
@@ -219,11 +236,23 @@ app.post(['/', '/assess'], async (req, res) => {
             // Also save the authoritative 'results.json' with the 'run_id' field 
             // so it can be directly picked up by the leaderboard without extra scripts.
             let agentIdKey = "unknown_agent";
-            if (Array.isArray(participants)) {
-                const pAgent = participants.find((p: any) => p.name === 'agent');
-                if (pAgent && pAgent.agentbeats_id) agentIdKey = pAgent.agentbeats_id;
-                else if (pAgent && pAgent.id) agentIdKey = pAgent.id;
+            if (Array.isArray(participants) && participants.length > 0) {
+                // Priority 1: Look for name 'agent'
+                let pAgent = participants.find((p: any) => p.name === 'agent');
+
+                // Priority 2: Look for ANY participant with an agentbeats_id
+                if (!pAgent) {
+                    pAgent = participants.find((p: any) => p.agentbeats_id);
+                }
+
+                // Priority 3: Fallback to first participant
+                if (!pAgent) pAgent = participants[0];
+
+                if (pAgent) {
+                    agentIdKey = pAgent.agentbeats_id || pAgent.id || pAgent.url || "unknown_id_extracted";
+                }
             } else if (participants?.agent) {
+                // Legacy object format
                 agentIdKey = participants.agent;
             }
 
