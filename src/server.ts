@@ -265,6 +265,11 @@ app.post(['/', '/assess'], async (req, res) => {
             };
             fs.writeFileSync('/app/debug_output/results.json', JSON.stringify(leaderboardPayload, null, 2));
             console.log('[DEBUG] Saved standardized results.json with run_id to /app/debug_output');
+
+            // Save to /app/results for easier access if mounted
+            if (!fs.existsSync('/app/results')) fs.mkdirSync('/app/results', { recursive: true });
+            fs.writeFileSync('/app/results/results.json', JSON.stringify(leaderboardPayload, null, 2));
+            console.log('[DEBUG] Saved standardized results.json with run_id to /app/results');
             // ----------------------------------
 
         } catch (e) { console.error('Failed to save audit result:', e); }
