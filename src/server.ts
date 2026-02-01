@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import fs from 'fs';
+import path from 'path';
 import { AuditorService } from './services/auditor';
 import { PDFProcessor } from './utils/pdfProcessor';
 
@@ -75,8 +76,8 @@ app.get('/.well-known/agent-card.json', (req, res) => {
  * A2A Assessment Endpoint
  */
 app.post(['/', '/assess'], async (req, res) => {
-    console.log("\n[REQUEST] POST /assess - New Assessment Request");
-    console.log('[DEBUG] Request body keys:', Object.keys(req.body));
+    const isJsonRpc = req.body.jsonrpc === "2.0";
+    const requestId = req.body.id || null;
     const params = req.body.params || {};
 
     let { participants, config } = req.body;
@@ -229,50 +230,98 @@ app.post(['/', '/assess'], async (req, res) => {
         // DEBUG: Save final audit result
         try {
             const fs = await import('fs');
+
+            // Original debugging output - DO NOT REMOVE
             fs.writeFileSync('/app/debug_output/green_audit_result.json', JSON.stringify(resultPayload, null, 2));
             console.log('[DEBUG] Saved green_audit_result.json');
 
-            // --- LEADERBOARD COMPATIBILITY ---
-            // Also save the authoritative 'results.json' with the 'run_id' field 
-            // so it can be directly picked up by the leaderboard without extra scripts.
-            let agentIdKey = "unknown_agent";
-            if (Array.isArray(participants) && participants.length > 0) {
-                // Priority 1: Look for name 'agent'
-                let pAgent = participants.find((p: any) => p.name === 'agent');
+            // --- LEADERBOARD COMPATIBILITY & OUTPUT GENERATION ---
+            // 1. Map all participants (all roles) for the new audit spec
+            const participantMapping: Record<string, string> = {};
 
-                // Priority 2: Look for ANY participant with an agentbeats_id
-                if (!pAgent) {
-                    pAgent = participants.find((p: any) => p.agentbeats_id);
+            // Fallback mapping from environment (passed by generate_compose.py)
+            let participantIdFallback: Record<string, string> = {};
+            try {
+                if (process.env.PARTICIPANT_IDS) {
+                    participantIdFallback = JSON.parse(process.env.PARTICIPANT_IDS);
                 }
-
-                // Priority 3: Fallback to first participant
-                if (!pAgent) pAgent = participants[0];
-
-                if (pAgent) {
-                    agentIdKey = pAgent.agentbeats_id || pAgent.id || pAgent.url || "unknown_id_extracted";
-                }
-            } else if (participants?.agent) {
-                // Legacy object format
-                agentIdKey = participants.agent;
+            } catch (e) {
+                console.error("[ERROR] Failed to parse PARTICIPANT_IDS env:", e);
             }
+
+            if (Array.isArray(participants)) {
+                participants.forEach((p: any) => {
+                    const key = p.name || p.role || "unknown_participant";
+                    const id = p.agentbeats_id || p.id || participantIdFallback[key] || p.url || "unknown_id";
+                    participantMapping[key] = id;
+                });
+            } else if (typeof participants === 'object') {
+                Object.entries(participants).forEach(([key, data]: [string, any]) => {
+                    let id = typeof data === 'object' ? (data.agentbeats_id || data.id || data.url) : data;
+                    if (participantIdFallback[key]) {
+                        id = participantIdFallback[key];
+                    }
+                    participantMapping[key] = id;
+                });
+            }
+
+            // Ensure Green Agent is included by its ID from environment
+            const greenId = process.env.GREEN_AGENT_ID || "research-slide-quality-auditor";
+            participantMapping['green_agent'] = greenId;
 
             const leaderboardPayload = {
                 participants: {
-                    agent: agentIdKey,
+                    ...participantMapping,
                     run_id: "run-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
                 },
                 results: auditResults
             };
+
+            // 2. Determine next result filename (result_N.json) - Use Max existing + 1
+            const resultsDir = '/app/results';
+            if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir, { recursive: true });
+
+            let maxNum = 0;
+            try {
+                const files = fs.readdirSync(resultsDir);
+                files.forEach(file => {
+                    const match = file.match(/^result_(\d+)\.json$/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxNum) maxNum = num;
+                    }
+                });
+            } catch (readErr) {
+                console.error('[ERROR] Failed to read results directory:', readErr);
+            }
+            const resultFileName = `result_${maxNum + 1}.json`;
+            console.log(`[DEBUG] Determined next result filename: ${resultFileName} (Max found: ${maxNum})`);
+
+            // 3. Save authoritative results.json (Original behavior)
             fs.writeFileSync('/app/debug_output/results.json', JSON.stringify(leaderboardPayload, null, 2));
             console.log('[DEBUG] Saved standardized results.json with run_id to /app/debug_output');
 
-            // Save to /app/results for easier access if mounted
             if (!fs.existsSync('/app/results')) fs.mkdirSync('/app/results', { recursive: true });
             fs.writeFileSync('/app/results/results.json', JSON.stringify(leaderboardPayload, null, 2));
             console.log('[DEBUG] Saved standardized results.json with run_id to /app/results');
-            // ----------------------------------
 
-        } catch (e) { console.error('Failed to save audit result:', e); }
+            // 4. Save incremental result_N.json and to /app/output (New behavior)
+            const outputPaths = ['/app/results', '/app/output', '/app/debug_output'];
+            outputPaths.forEach(dir => {
+                try {
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    const fullPath = path.join(dir, resultFileName);
+                    fs.writeFileSync(fullPath, JSON.stringify(leaderboardPayload, null, 2));
+                    console.log(`[DEBUG] Saved incremental results to: ${fullPath}`);
+                } catch (e) {
+                    console.error(`[ERROR] Failed to save incremental results to ${dir}:`, e);
+                }
+            });
+
+        } catch (e) {
+            console.error('[ERROR] Final output generation failed:', e);
+        }
+
 
         console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
 
@@ -313,4 +362,6 @@ app.listen(PORT, HOST, () => {
     console.log(`[STARTUP] Green Agent listening on ${HOST}:${PORT}`);
     console.log('[STARTUP] Healthcheck endpoint: /.well-known/agent-card.json');
     console.log('[STARTUP] Assessment endpoint: /assess');
+    console.log(`[STARTUP] GREEN_AGENT_ID: ${process.env.GREEN_AGENT_ID || 'not set'}`);
+    console.log(`[STARTUP] PARTICIPANT_IDS: ${process.env.PARTICIPANT_IDS || 'not set'}`);
 });
