@@ -297,13 +297,11 @@ app.post(['/', '/assess'], async (req, res) => {
             const resultFileName = `result_${maxNum + 1}.json`;
             console.log(`[DEBUG] Determined next result filename: ${resultFileName} (Max found: ${maxNum})`);
 
-            // 3. Save authoritative results.json (Original behavior)
-            fs.writeFileSync('/app/debug_output/results.json', JSON.stringify(leaderboardPayload, null, 2));
-            console.log('[DEBUG] Saved standardized results.json with run_id to /app/debug_output');
-
-            if (!fs.existsSync('/app/results')) fs.mkdirSync('/app/results', { recursive: true });
-            fs.writeFileSync('/app/results/results.json', JSON.stringify(leaderboardPayload, null, 2));
-            console.log('[DEBUG] Saved standardized results.json with run_id to /app/results');
+            // 3. Save authoritative results.json (Original behavior for AgentBeats Client)
+            const standardOutputDir = '/app/output';
+            if (!fs.existsSync(standardOutputDir)) fs.mkdirSync(standardOutputDir, { recursive: true });
+            fs.writeFileSync(path.join(standardOutputDir, 'results.json'), JSON.stringify(leaderboardPayload, null, 2));
+            console.log('[DEBUG] Saved standardized results.json to /app/output for AgentBeats Client');
 
             // 4. Save incremental result_N.json and to /app/output (New behavior)
             const outputPaths = ['/app/results', '/app/output', '/app/debug_output'];
