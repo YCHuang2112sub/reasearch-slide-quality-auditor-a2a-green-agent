@@ -205,9 +205,11 @@ app.post(['/', '/assess'], async (req, res) => {
             const generatedSlides = genResponse.data?.json?.slides || [];
             const slideData = generatedSlides[i] || researchData.slides?.[i] || researchData;
             const result = await auditor.auditSlide(page.image, page.text, slideData, storyContext);
+            console.log(`[ANALYTIC] Slide ${i + 1}/${pages.length} - Score: ${result.totalScore} - Verdict: ${result.narrativeVerdict.substring(0, 100)}...`);
             auditResults.push(result);
             storyContext = `Slide ${i + 1} Verdict: ${result.narrativeVerdict}`;
         }
+        console.log(`[ANALYTIC] Finished Audit. Total Slides: ${pages.length}. Average Score: ${auditResults.reduce((acc, r) => acc + r.totalScore, 0) / auditResults.length}`);
 
         // 4. Return Results
         // Wrap in AgentBeats A2A envelope to satisfy strict clients
