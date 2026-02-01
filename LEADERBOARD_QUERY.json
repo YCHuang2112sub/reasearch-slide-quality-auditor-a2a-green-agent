@@ -1,27 +1,6 @@
 [
-    {
-        "name": "Overall Consistency",
-        "query": "SELECT
-      id,
-      ROUND(pass_rate,
-        1) AS \"Pass Rate\",
-      ROUND(time_used,
-        1) AS \"Time\",
-      total_tasks AS \"# Tasks\"
-    FROM (
-      SELECT *,
-             ROW_NUMBER() OVER (PARTITION BY id ORDER BY pass_rate DESC, time_used ASC) AS rn
-      FROM (
-        SELECT
-          results.participants.agent AS id,
-          res.pass_rate AS pass_rate,
-          res.time_used AS time_used,
-          SUM(res.max_score) OVER (PARTITION BY results.participants.agent) AS total_tasks
-        FROM results
-        CROSS JOIN UNNEST(results.results) AS r(res)
-      )
-    )
-    WHERE rn = 1
-    ORDER BY \"Pass Rate\" DESC;"
-    }
+  {
+    "name": "Audit Performance",
+    "query": "SELECT id, ROUND(total, 2) AS Best_Score, ROUND(clarity, 2) AS Clarity, ROUND(logic, 2) AS Logic, ROUND(align, 2) AS Align, ROUND(flow, 2) AS Flow FROM (SELECT id, total, clarity, logic, align, flow, ROW_NUMBER() OVER (PARTITION BY id ORDER BY total DESC) as rn FROM (SELECT t.participants.agent AS id, AVG(r.totalScore) AS total, AVG(r.clarityScore) AS clarity, AVG(r.logicScore) AS logic, AVG(r.internalAlignment) AS align, AVG(r.narrativeFlow) AS flow FROM results t CROSS JOIN UNNEST(t.results) AS _(r) GROUP BY id, t.participants.run_id)) WHERE rn = 1 ORDER BY Best_Score DESC;"
+  }
 ]
