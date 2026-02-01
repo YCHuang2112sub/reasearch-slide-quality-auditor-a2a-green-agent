@@ -213,6 +213,18 @@ app.post(['/', '/assess'], async (req, res) => {
 
 
         // --- LEADERBOARD COMPATIBILITY & OUTPUT GENERATION ---
+
+        // Calculate average scores
+        const avgScores = {
+            total: auditResults.reduce((acc, r) => acc + r.totalScore, 0) / auditResults.length,
+            clarity: auditResults.reduce((acc, r) => acc + (r.clarityScore || 0), 0) / auditResults.length,
+            logic: auditResults.reduce((acc, r) => acc + (r.logicScore || 0), 0) / auditResults.length,
+            align: auditResults.reduce((acc, r) => acc + (r.internalAlignment || 0), 0) / auditResults.length,
+            flow: auditResults.reduce((acc, r) => acc + (r.narrativeFlow || 0), 0) / auditResults.length
+        };
+
+        console.log(`[ANALYTIC] Overall Average Scores: Total=${avgScores.total.toFixed(2)}, Clarity=${avgScores.clarity.toFixed(2)}, Logic=${avgScores.logic.toFixed(2)}, Alignment=${avgScores.align.toFixed(2)}, Flow=${avgScores.flow.toFixed(2)}`);
+
         // 1. Map all participants (all roles) for the new audit spec
         const participantMapping: Record<string, string> = {};
 
