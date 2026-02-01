@@ -211,22 +211,47 @@ app.post(['/', '/assess'], async (req, res) => {
         }
         console.log(`[ANALYTIC] Finished Audit. Total Slides: ${pages.length}. Average Score: ${auditResults.reduce((acc, r) => acc + r.totalScore, 0) / auditResults.length}`);
 
-        // 4. Return Results
-        // Wrap in AgentBeats A2A envelope to satisfy strict clients
-        // 4. Return Results
-        // Wrap in JSON-RPC envelope if request was JSON-RPC
-        const isJsonRpc = req.body.jsonrpc === "2.0";
-        const requestId = req.body.id || null;
 
-        // Construct a flat Message object satisfying the schema
-        const resultPayload = {
-            role: "agent",
-            messageId: params.messageId || ("msg-" + Date.now()), // Echo ID or generate new
-            parts: [
-                {
-                    text: JSON.stringify(auditResults)
+        // --- LEADERBOARD COMPATIBILITY & OUTPUT GENERATION ---
+        // 1. Map all participants (all roles) for the new audit spec
+        const participantMapping: Record<string, string> = {};
+
+        // Fallback mapping from environment (passed by generate_compose.py)
+        let participantIdFallback: Record<string, string> = {};
+        try {
+            if (process.env.PARTICIPANT_IDS) {
+                participantIdFallback = JSON.parse(process.env.PARTICIPANT_IDS);
+            }
+        } catch (e) {
+            console.error("[ERROR] Failed to parse PARTICIPANT_IDS env:", e);
+        }
+
+        if (Array.isArray(participants)) {
+            participants.forEach((p: any) => {
+                const key = p.name || p.role || "unknown_participant";
+                const id = p.agentbeats_id || p.id || participantIdFallback[key] || p.url || "unknown_id";
+                participantMapping[key] = id;
+            });
+        } else if (typeof participants === 'object') {
+            Object.entries(participants).forEach(([key, data]: [string, any]) => {
+                let id = typeof data === 'object' ? (data.agentbeats_id || data.id || data.url) : data;
+                if (participantIdFallback[key]) {
+                    id = participantIdFallback[key];
                 }
-            ]
+                participantMapping[key] = id;
+            });
+        }
+
+        // Ensure Green Agent is included by its ID from environment
+        const greenId = process.env.GREEN_AGENT_ID || "research-slide-quality-auditor";
+        participantMapping['green_agent'] = greenId;
+
+        const leaderboardPayload = {
+            participants: {
+                ...participantMapping,
+                run_id: "run-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
+            },
+            results: auditResults
         };
 
         // DEBUG: Save final audit result
@@ -234,50 +259,13 @@ app.post(['/', '/assess'], async (req, res) => {
             const fs = await import('fs');
 
             // Original debugging output - DO NOT REMOVE
-            fs.writeFileSync('/app/debug_output/green_audit_result.json', JSON.stringify(resultPayload, null, 2));
-            console.log('[DEBUG] Saved green_audit_result.json');
-
-            // --- LEADERBOARD COMPATIBILITY & OUTPUT GENERATION ---
-            // 1. Map all participants (all roles) for the new audit spec
-            const participantMapping: Record<string, string> = {};
-
-            // Fallback mapping from environment (passed by generate_compose.py)
-            let participantIdFallback: Record<string, string> = {};
-            try {
-                if (process.env.PARTICIPANT_IDS) {
-                    participantIdFallback = JSON.parse(process.env.PARTICIPANT_IDS);
-                }
-            } catch (e) {
-                console.error("[ERROR] Failed to parse PARTICIPANT_IDS env:", e);
-            }
-
-            if (Array.isArray(participants)) {
-                participants.forEach((p: any) => {
-                    const key = p.name || p.role || "unknown_participant";
-                    const id = p.agentbeats_id || p.id || participantIdFallback[key] || p.url || "unknown_id";
-                    participantMapping[key] = id;
-                });
-            } else if (typeof participants === 'object') {
-                Object.entries(participants).forEach(([key, data]: [string, any]) => {
-                    let id = typeof data === 'object' ? (data.agentbeats_id || data.id || data.url) : data;
-                    if (participantIdFallback[key]) {
-                        id = participantIdFallback[key];
-                    }
-                    participantMapping[key] = id;
-                });
-            }
-
-            // Ensure Green Agent is included by its ID from environment
-            const greenId = process.env.GREEN_AGENT_ID || "research-slide-quality-auditor";
-            participantMapping['green_agent'] = greenId;
-
-            const leaderboardPayload = {
-                participants: {
-                    ...participantMapping,
-                    run_id: "run-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
-                },
-                results: auditResults
+            const resultPayloadDebug = {
+                role: "agent",
+                messageId: params.messageId || ("msg-" + Date.now()),
+                parts: [{ text: JSON.stringify(auditResults) }]
             };
+            fs.writeFileSync('/app/debug_output/green_audit_result.json', JSON.stringify(resultPayloadDebug, null, 2));
+            console.log('[DEBUG] Saved green_audit_result.json');
 
             // 2. Determine next result filename (result_N.json) - Use Max existing + 1
             const resultsDir = '/app/results';
@@ -323,28 +311,31 @@ app.post(['/', '/assess'], async (req, res) => {
         }
 
 
-        console.log("DEBUG: Sending Result Payload (Message Schema):", JSON.stringify(resultPayload, null, 2));
+        console.log("DEBUG: Sending Leaderboard Payload:", JSON.stringify(leaderboardPayload, null, 2));
 
         if (isJsonRpc) {
             res.json({
                 jsonrpc: "2.0",
                 id: requestId,
-                result: resultPayload
+                result: {
+                    status: "completed",
+                    results: auditResults,
+                    metadata: leaderboardPayload.participants // Include metadata for the client to capture
+                }
             });
         } else {
             // Legacy/Direct support
             res.json({
                 status: "completed",
-                result: resultPayload,
+                results: auditResults,
+                participants: leaderboardPayload.participants,
                 artifacts: [
                     {
                         id: "audit-report",
-                        totalScore: { type: "INTEGER", description: "Overall composite score 1-100. MUST NOT EXCEED 100. Average all metrics and normalize." },
                         type: "application/json",
                         data: auditResults
                     }
-                ],
-                ...auditResults
+                ]
             });
         }
 
