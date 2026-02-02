@@ -299,14 +299,9 @@ app.post(['/', '/assess'], async (req, res) => {
             const resultFileName = `result_${maxNum + 1}.json`;
             console.log(`[DEBUG] Determined next result filename: ${resultFileName} (Max found: ${maxNum})`);
 
-            // 3. Save authoritative results.json (Original behavior for AgentBeats Client)
-            const standardOutputDir = '/app/output';
-            if (!fs.existsSync(standardOutputDir)) fs.mkdirSync(standardOutputDir, { recursive: true });
-            fs.writeFileSync(path.join(standardOutputDir, 'results.json'), JSON.stringify(leaderboardPayload, null, 2));
-            console.log('[DEBUG] Saved standardized results.json to /app/output for AgentBeats Client');
 
-            // 4. Save incremental result_N.json and to /app/output (New behavior)
-            const outputPaths = ['/app/results', '/app/output', '/app/debug_output'];
+            // 3. Save incremental result_N.json (Backup behavior)
+            const outputPaths = ['/app/results', '/app/debug_output'];
             outputPaths.forEach(dir => {
                 try {
                     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -323,16 +318,14 @@ app.post(['/', '/assess'], async (req, res) => {
         }
 
 
-        console.log("DEBUG: Sending Leaderboard Payload:", JSON.stringify(leaderboardPayload, null, 2));
+        // Final log of average scores already emitted via [ANALYTIC]
 
         if (isJsonRpc) {
             // Return BOTH direct result array and results-wrapped object for safety
             res.json({
                 jsonrpc: "2.0",
                 id: requestId,
-                result: auditResults, // Many clients expect the direct array
-                results: auditResults, // Some expect results at root
-                metadata: leaderboardPayload.participants
+                result: leaderboardPayload
             });
         } else {
             // Legacy/Direct support
