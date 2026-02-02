@@ -8,6 +8,28 @@ export class AuditorService {
         this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
+    private async withRetry<T>(fn: () => Promise<T>, slideTitle: string, maxRetries: number = 3): Promise<T> {
+        let lastError: any;
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                return await fn();
+            } catch (error: any) {
+                lastError = error;
+                const status = error.status || (error.response && error.response.status);
+
+                // Retry on 503 (Service Unavailable), 504 (Gateway Timeout), 429 (Rate Limit)
+                if (status === 503 || status === 504 || status === 429 || !status) {
+                    const delay = Math.pow(2, i) * 2000; // 2s, 4s, 8s
+                    console.warn(`[WARN] Transient API error (${status || 'Timeout'}) on slide "${slideTitle}". Retrying in ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw lastError;
+    }
+
     async auditSlide(
         slideImageBase64: string,
         layoutSchematic: string,
@@ -93,19 +115,24 @@ Evaluate 3 paths (Research->Notes, Research->Slide, Notes->Slide) across 3 crite
 
 OUTPUT JSON FORMAT ONLY.`;
 
-        console.log(`[DEBUG] Sending audit request to Gemini for slide ${slideData.title || 'unknown'}...`);
-        const result = await generativeModel.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    mimeType: "image/jpeg",
-                    data: slideImageBase64
-                }
-            }
-        ]);
+        const slideTitle = slideData.title || 'Untitled Slide';
+        console.log(`[DEBUG] Sending audit request to Gemini for slide ${slideTitle}...`);
 
-        const response = await result.response;
-        const text = response.text();
+        const text = await this.withRetry(async () => {
+            const result = await generativeModel.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        mimeType: "image/jpeg",
+                        data: slideImageBase64
+                    }
+                }
+            ]);
+
+            const response = await result.response;
+            return response.text();
+        }, slideTitle);
+
         console.log("[DEBUG] Received Gemini response text length:", text.length);
 
         try {
