@@ -326,14 +326,13 @@ app.post(['/', '/assess'], async (req, res) => {
         console.log("DEBUG: Sending Leaderboard Payload:", JSON.stringify(leaderboardPayload, null, 2));
 
         if (isJsonRpc) {
+            // Return BOTH direct result array and results-wrapped object for safety
             res.json({
                 jsonrpc: "2.0",
                 id: requestId,
-                result: {
-                    status: "completed",
-                    results: auditResults,
-                    metadata: leaderboardPayload.participants // Include metadata for the client to capture
-                }
+                result: auditResults, // Many clients expect the direct array
+                results: auditResults, // Some expect results at root
+                metadata: leaderboardPayload.participants
             });
         } else {
             // Legacy/Direct support
