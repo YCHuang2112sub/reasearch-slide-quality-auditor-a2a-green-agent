@@ -300,18 +300,29 @@ app.post(['/', '/assess'], async (req, res) => {
             console.log(`[DEBUG] Determined next result filename: ${resultFileName} (Max found: ${maxNum})`);
 
 
-            // 3. Save incremental result_N.json (Backup behavior)
-            const outputPaths = ['/app/results', '/app/debug_output'];
-            outputPaths.forEach(dir => {
+            // 3. Save authoritative results.json and incremental result_N.json
+            const outputPaths = ['/app/results', '/app/output', '/app/debug_output'];
+            for (const dir of outputPaths) {
                 try {
+                    const fs = await import('fs');
+                    const path = await import('path');
                     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                    const fullPath = path.join(dir, resultFileName);
-                    fs.writeFileSync(fullPath, JSON.stringify(leaderboardPayload, null, 2));
-                    console.log(`[DEBUG] Saved incremental results to: ${fullPath}`);
+
+                    // 3a. Save incremental result_N.json
+                    const incrementalPath = path.join(dir, resultFileName);
+                    fs.writeFileSync(incrementalPath, JSON.stringify(leaderboardPayload, null, 2));
+                    console.log(`[DEBUG] Saved incremental results to: ${incrementalPath}`);
+
+                    // 3b. Save authoritative results.json in /app/output for the runner
+                    if (dir === '/app/output') {
+                        const standardPath = path.join(dir, 'results.json');
+                        fs.writeFileSync(standardPath, JSON.stringify(leaderboardPayload, null, 2));
+                        console.log('[DEBUG] Updated authoritative results.json in /app/output');
+                    }
                 } catch (e) {
-                    console.error(`[ERROR] Failed to save incremental results to ${dir}:`, e);
+                    console.error(`[ERROR] Failed to save results to ${dir}:`, e);
                 }
-            });
+            }
 
         } catch (e) {
             console.error('[ERROR] Final output generation failed:', e);
@@ -325,7 +336,7 @@ app.post(['/', '/assess'], async (req, res) => {
             res.json({
                 jsonrpc: "2.0",
                 id: requestId,
-                result: leaderboardPayload
+                result: auditResults
             });
         } else {
             // Legacy/Direct support
