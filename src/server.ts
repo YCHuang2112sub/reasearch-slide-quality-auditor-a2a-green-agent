@@ -193,14 +193,6 @@ app.post(['/', '/assess'], async (req, res) => {
                 console.log(`[DEBUG] Saved slide_${i + 1}.png to /app/debug_output`);
             } catch (e) { console.error(`[DEBUG] Failed to save slide_${i + 1}.png:`, e); }
 
-            // SAVE SLIDE IMAGE TO DEBUG VOLUMN
-            try {
-                const fs = await import('fs');
-                if (!fs.existsSync('/app/debug_output')) fs.mkdirSync('/app/debug_output', { recursive: true });
-                fs.writeFileSync(`/app/debug_output/slide_${i + 1}.png`, Buffer.from(page.image, 'base64'));
-                console.log(`[DEBUG] Saved slide_${i + 1}.png to /app/debug_output`);
-            } catch (e) { console.error(`[DEBUG] Failed to save slide_${i + 1}.png:`, e); }
-
             // Use generated slides from Purple Agent if available, otherwise fallback to input plan
             const generatedSlides = genResponse.data?.json?.slides || [];
             const slideData = generatedSlides[i] || researchData.slides?.[i] || researchData;
@@ -214,16 +206,23 @@ app.post(['/', '/assess'], async (req, res) => {
 
         // --- LEADERBOARD COMPATIBILITY & OUTPUT GENERATION ---
 
-        // Calculate average scores
+        // Calculate average scores for ALL requested metrics
         const avgScores = {
-            total: auditResults.reduce((acc, r) => acc + r.totalScore, 0) / auditResults.length,
-            clarity: auditResults.reduce((acc, r) => acc + (r.clarityScore || 0), 0) / auditResults.length,
-            logic: auditResults.reduce((acc, r) => acc + (r.logicScore || 0), 0) / auditResults.length,
-            align: auditResults.reduce((acc, r) => acc + (r.internalAlignment || 0), 0) / auditResults.length,
-            flow: auditResults.reduce((acc, r) => acc + (r.narrativeFlow || 0), 0) / auditResults.length
+            r2n_retention: auditResults.reduce((acc, r) => acc + (r.r2n_retention || 0), 0) / auditResults.length,
+            r2n_authenticity: auditResults.reduce((acc, r) => acc + (r.r2n_authenticity || 0), 0) / auditResults.length,
+            r2n_risk: auditResults.reduce((acc, r) => acc + (r.r2n_risk || 0), 0) / auditResults.length,
+            r2s_retention: auditResults.reduce((acc, r) => acc + (r.r2s_retention || 0), 0) / auditResults.length,
+            r2s_authenticity: auditResults.reduce((acc, r) => acc + (r.r2s_authenticity || 0), 0) / auditResults.length,
+            r2s_risk: auditResults.reduce((acc, r) => acc + (r.r2s_risk || 0), 0) / auditResults.length,
+            n2s_retention: auditResults.reduce((acc, r) => acc + (r.n2s_retention || 0), 0) / auditResults.length,
+            n2s_authenticity: auditResults.reduce((acc, r) => acc + (r.n2s_authenticity || 0), 0) / auditResults.length,
+            n2s_risk: auditResults.reduce((acc, r) => acc + (r.n2s_risk || 0), 0) / auditResults.length,
+            clarityScore: auditResults.reduce((acc, r) => acc + (r.clarityScore || 0), 0) / auditResults.length,
+            logicScore: auditResults.reduce((acc, r) => acc + (r.logicScore || 0), 0) / auditResults.length,
+            internalAlignment: auditResults.reduce((acc, r) => acc + (r.internalAlignment || 0), 0) / auditResults.length,
+            narrativeFlow: auditResults.reduce((acc, r) => acc + (r.narrativeFlow || 0), 0) / auditResults.length,
+            totalScore: auditResults.reduce((acc, r) => acc + (r.totalScore || 0), 0) / auditResults.length
         };
-
-        console.log(`[ANALYTIC] Overall Average Scores: Total=${avgScores.total.toFixed(2)}, Clarity=${avgScores.clarity.toFixed(2)}, Logic=${avgScores.logic.toFixed(2)}, Alignment=${avgScores.align.toFixed(2)}, Flow=${avgScores.flow.toFixed(2)}`);
 
         // 1. Map all participants (all roles) for the new audit spec
         const participantMapping: Record<string, string> = {};
@@ -259,11 +258,14 @@ app.post(['/', '/assess'], async (req, res) => {
         participantMapping['green_agent'] = greenId;
 
         const leaderboardPayload = {
+            results: {
+                pages: auditResults
+            },
+            averages: avgScores,
             participants: {
                 ...participantMapping,
                 run_id: "run-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
-            },
-            results: auditResults
+            }
         };
 
         // DEBUG: Save final audit result
@@ -297,8 +299,20 @@ app.post(['/', '/assess'], async (req, res) => {
                 console.error('[ERROR] Failed to read results directory:', readErr);
             }
             const resultFileName = `result_${maxNum + 1}.json`;
-            console.log(`[DEBUG] Determined next result filename: ${resultFileName} (Max found: ${maxNum})`);
+            if (auditResults.length === 0) {
+                console.error('[ERROR] ASSESSMENT FINISHED WITH ZERO RESULTS. Something is wrong with the audit loop or purple agent response.');
+            } else {
+                console.log(`[DEBUG] Finalizing assessment with ${auditResults.length} slides.`);
+            }
 
+
+            // 2. Manual Result Persistence (Green Agent Zone)
+            // This file is written directly to the /app/results mount.
+            // It serves as a secondary source of truth in case the Client's 
+            // internal results.json write fails or differs in format.
+            const resultsFilePath = path.join('/app/output', "results_green_agent.json");
+            fs.writeFileSync(resultsFilePath, JSON.stringify(leaderboardPayload, null, 2));
+            console.log(`[DEBUG] Saved Green-Agent-Managed results to: ${resultsFilePath}`);
 
             // 3. Save authoritative results.json and incremental result_N.json
             const outputPaths = ['/app/results', '/app/output', '/app/debug_output'];
@@ -313,11 +327,15 @@ app.post(['/', '/assess'], async (req, res) => {
                     fs.writeFileSync(incrementalPath, JSON.stringify(leaderboardPayload, null, 2));
                     console.log(`[DEBUG] Saved incremental results to: ${incrementalPath}`);
 
-                    // 3b. Save authoritative results.json in /app/output for the runner
+                    // 3b. Rely on JSON-RPC response for authoritative results.json (Client Handover)
+                    // We no longer write results.json manually to avoid clobbering/race conditions with the client.
                     if (dir === '/app/output') {
-                        const standardPath = path.join(dir, 'results.json');
-                        fs.writeFileSync(standardPath, JSON.stringify(leaderboardPayload, null, 2));
-                        console.log('[DEBUG] Updated authoritative results.json in /app/output');
+                        console.log('[DEBUG] Skipping manual results.json write to allow Client Handover.');
+
+                        // 3c. Still save a BACKUP authoritative file for diagnostic safety
+                        const backupPath = path.join(dir, 'results_authoritative_backup.json');
+                        fs.writeFileSync(backupPath, JSON.stringify(leaderboardPayload, null, 2));
+                        console.log('[DEBUG] Saved results_authoritative_backup.json');
                     }
                 } catch (e) {
                     console.error(`[ERROR] Failed to save results to ${dir}:`, e);
@@ -330,14 +348,57 @@ app.post(['/', '/assess'], async (req, res) => {
 
 
         // Final log of average scores already emitted via [ANALYTIC]
+        console.log(`[ANALYTIC] HANDOVER_INITIATED: Preparing JSON-RPC response for ${auditResults.length} results.`);
+        console.log(`[ANALYTIC] PAYLOAD_SUMMARY: ResultsCount=${auditResults.length}, Participants=${Object.keys(leaderboardPayload.participants).join(',')}`);
+        console.log(`[ANALYTIC] isJsonRpc = ${isJsonRpc}`);
 
         if (isJsonRpc) {
-            // Return BOTH direct result array and results-wrapped object for safety
-            res.json({
-                jsonrpc: "2.0",
-                id: requestId,
-                result: auditResults
-            });
+            try {
+                const { spawnSync } = await import('node:child_process');
+                const path = await import('node:path');
+                const scriptPath = path.join(process.cwd(), 'src', 'a2a_handover.py');
+
+                const pythonInput = JSON.stringify({
+                    payload: leaderboardPayload,
+                    requestId: requestId
+                });
+
+                console.log('[DEBUG] Executing A2A Python Handover Bridge...');
+                const result = spawnSync('python3', [scriptPath], {
+                    input: pythonInput,
+                    encoding: 'utf-8'
+                });
+
+                if (result.status === 0) {
+                    const a2aResponse = JSON.parse(result.stdout);
+                    res.json(a2aResponse);
+                    console.log('[ANALYTIC] HANDOVER_COMPLETED: A2A-compliant response sent via Python Bridge.');
+                } else {
+                    throw new Error(`Python bridge failed: ${result.stderr}`);
+                }
+            } catch (err) {
+                console.error('[ERROR] A2A Python Bridge failed, falling back to manual handover:', err);
+                // Fallback to manual handover logic
+                res.json({
+                    jsonrpc: "2.0",
+                    id: requestId,
+                    result: {
+                        id: requestId || `resp-${Date.now()}`,
+                        contextId: requestId || `ctx-${Date.now()}`,
+                        status: { value: "completed" },
+                        messageId: requestId || `msg-${Date.now()}`,
+                        role: "agent",
+                        type: "results",
+                        results: auditResults,
+                        participants: leaderboardPayload.participants,
+                        artifacts: [{
+                            name: "results.json",
+                            parts: [{ root: { data: leaderboardPayload } }]
+                        }],
+                        data: leaderboardPayload
+                    }
+                });
+            }
         } else {
             // Legacy/Direct support
             res.json({
